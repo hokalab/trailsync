@@ -12,19 +12,19 @@
 - 統一フォーマットへの変換
 - サービス固有のデータを保持
 - 拡張データ（心拍数、ケイデンス等）に対応
-- コマンドラインインターフェース
-- Streamlitによるウェブインターフェース
+- Dashによるウェブインターフェース
+- Renderでのデプロイに対応
 
 ## デモ
 
-Streamlit Community Cloudでホストされたデモアプリケーションを試すことができます：
-[TrailSync Demo](https://trailsync.streamlit.app/)
+Renderでホストされたデモアプリケーションを試すことができます：
+[TrailSync Demo](https://trailsync.onrender.com)
 
 ## インストール
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/HokaLabs/trailsync.git
+git clone https://github.com/mump0nd/trailsync.git
 cd trailsync
 
 # 仮想環境の作成と有効化
@@ -38,43 +38,33 @@ pip install -r requirements.txt
 
 ## 使用方法
 
-### Streamlitアプリケーション
+### ローカルでの実行
 
 ```bash
-# Streamlitアプリケーションを実行
-./run_app.sh
-
-# または手動で実行
-source venv/bin/activate
-streamlit run app.py
+# アプリケーションを実行
+python app.py
 ```
 
-ブラウザで http://localhost:8501 を開き、ウェブインターフェースを使用します。
+ブラウザで http://localhost:8050 を開き、ウェブインターフェースを使用します。
 
 1. GPXファイルをアップロード
 2. サービスを自動検出または選択
 3. 変換オプションを設定
 4. 変換結果をダウンロード
 
-### コマンドライン
+### Renderへのデプロイ
 
-```bash
-# 基本的な使用方法
-python -m trailsync.main input.gpx -o output.gpx
+このリポジトリはRenderへの直接デプロイに対応しています。
 
-# トラック名とアクティビティタイプを指定
-python -m trailsync.main input.gpx -o output.gpx -n "山行記録" -t "hiking"
-
-# GPXファイルの分析
-python -m trailsync.main input.gpx --analyze
-```
-
-### オプション
-
-- `-o, --output`: 出力ファイル名（指定しない場合は入力ファイル名_converted.gpx）
-- `-n, --name`: トラック名（指定しない場合は元のファイルから推測または自動生成）
-- `-t, --type`: アクティビティタイプ（hiking, running, cycling等、デフォルト: hiking）
-- `-a, --analyze`: GPXファイルの分析情報を表示
+1. [Render](https://render.com/)にアカウントを作成
+2. 「New Web Service」をクリック
+3. このリポジトリのURLを入力
+4. 以下の設定を行う：
+   - Name: trailsync（または任意の名前）
+   - Environment: Python
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `gunicorn app:server`
+5. 「Create Web Service」をクリック
 
 ## プロジェクト構成
 
@@ -96,8 +86,9 @@ trailsync/
 ├── tests/              # テストコード
 │   ├── test_parser.py  # テストファイル
 │   └── test_data/      # テスト用データ
-├── app.py              # Streamlitアプリケーション
-├── run_app.sh          # アプリケーション実行スクリプト
+├── app.py              # Dashアプリケーション
+├── Procfile            # Renderデプロイ用
+├── render.yaml         # Render設定ファイル
 ├── venv/               # 仮想環境（gitignoreに追加）
 ├── requirements.txt    # 依存関係
 └── requirements-dev.txt # 開発用依存関係
@@ -128,20 +119,6 @@ pytest
 ```bash
 ruff check .
 ```
-
-## デプロイ
-
-### Streamlit Community Cloud
-
-このアプリケーションは、Streamlit Community Cloudを使用して簡単にデプロイできます：
-
-1. GitHubにリポジトリをプッシュします
-2. [Streamlit Community Cloud](https://streamlit.io/cloud)にアクセスし、GitHubアカウントでログインします
-3. 「New app」をクリックし、リポジトリを選択します
-4. メインファイルとして「app.py」を指定します
-5. 「Deploy」をクリックします
-
-変更をGitHubにプッシュするたびに、アプリケーションは自動的に更新されます。
 
 ## サポート
 

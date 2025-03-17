@@ -22,8 +22,8 @@ wheels/
 
 # Virtual Environment
 venv/
-ENV/
 env/
+ENV/
 
 # IDE
 .idea/
@@ -40,8 +40,29 @@ env/
 ehthumbs.db
 Thumbs.db
 
-# Project specific
+# Logs
 *.log
+logs/
+
+# Local configuration
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Streamlit
+.streamlit/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Cache
+__pycache__/
+.pytest_cache/
 .coverage
 htmlcov/
-.pytest_cache/
+.mypy_cache/
+.ruff_cache/

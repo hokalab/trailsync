@@ -2,92 +2,40 @@
 # -*- coding: utf-8 -*-
 
 """
-TrailSync - Streamlitアプリケーション
+TrailSync - Webアプリケーション
 
-このスクリプトは、Streamlitを使用してTrailSyncの機能をウェブアプリケーションとして提供します。
+このスクリプトは、DashとStreamlitの両方に対応したTrailSyncのWebアプリケーションを提供します。
+Renderでのデプロイに対応しています。
 """
 
 import os
 import tempfile
-import streamlit as st
-import folium
-from streamlit_folium import folium_static
-import pandas as pd
-from datetime import datetime
-import xml.etree.ElementTree as ET
 import base64
 from io import BytesIO
+from datetime import datetime
+import xml.etree.ElementTree as ET
+
+# Dash関連のインポート
+import dash
+from dash import dcc, html, callback, Input, Output, State
+import dash_bootstrap_components as dbc
+import plotly.express as px
+import pandas as pd
+
+# Folium関連のインポート（地図表示用）
+import folium
 
 # プロジェクトのモジュールをインポート
-from src.universal_gpx_converter.parser import GPXParser
-from src.universal_gpx_converter.converter import GPXConverter
-from src.universal_gpx_converter.services.yamareco import YamarecoService
-from src.universal_gpx_converter.services.strava import StravaService
-from src.universal_gpx_converter.services.runkeeper import RunkeeperService
-
-# アプリケーションのタイトルと説明
-st.set_page_config(
-    page_title="TrailSync",
-    page_icon="🗺️",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-# カスタムCSS
-st.markdown("""
-<style>
-.buy-me-coffee {
-    display: inline-block;
-    padding: 10px 20px;
-    background-color: #FFDD00;
-    color: #000000 !important;
-    font-weight: bold;
-    text-decoration: none;
-    border-radius: 5px;
-    margin: 10px 0;
-    text-align: center;
-    transition: all 0.3s ease;
-}
-.buy-me-coffee:hover {
-    background-color: #FFCC00;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-.buy-me-coffee img {
-    vertical-align: middle;
-    margin-right: 8px;
-    height: 20px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# サイドバー
-st.sidebar.title("TrailSync")
-st.sidebar.info(
-    "様々なアクティビティログサービス（ヤマレコ、Strava、Runkeeper等）の"
-    "GPXファイルを統一フォーマットに変換し、相互運用性を高めるツールです。"
-)
-
-# Buy Me a Coffeeボタン
-st.sidebar.markdown("""
-<a href="https://www.buymeacoffee.com/mump0nd" target="_blank" class="buy-me-coffee">
-    <img src="https://cdn.buymeacoffee.com/buttons/bmc-new-btn-logo.svg" alt="Buy me a coffee">
-    Buy me a coffee
-</a>
-""", unsafe_allow_html=True)
-
-# メインコンテンツ
-st.title("TrailSync")
-st.markdown(
-    """
-    このアプリケーションは、様々なサービスのGPXファイルを解析し、統一フォーマットに変換します。
-    
-    1. GPXファイルをアップロード
-    2. サービスを自動検出または選択
-    3. 変換オプションを設定
-    4. 変換結果をダウンロード
-    """
-)
+try:
+    from src.trailsync.parser import GPXParser
+    from src.trailsync.converter import GPXConverter
+    from src.trailsync.services.yamareco import YamarecoService
+    from src.trailsync.services.strava import StravaService
+    from src.trailsync.services.runkeeper import RunkeeperService
+except ImportError:
+    # ローカル開発環境用のフォールバック
+    print("Warning: Unable to import from src.trailsync. Using local imports.")
+    # 必要に応じてローカルインポートを設定
 
 # サービスのマッピング
 service_classes = {
@@ -97,16 +45,217 @@ service_classes = {
     "auto": None,
 }
 
-# GPXファイルのアップロード
-uploaded_file = st.file_uploader("GPXファイルをアップロード", type=["gpx"])
+# Dashアプリケーションの初期化
+app = dash.Dash(
+    __name__,
+    external_stylesheets=[dbc.themes.BOOTSTRAP],
+    meta_tags=[
+        {"name": "viewport", "content": "width=device-width, initial-scale=1.0"}
+    ],
+)
+server = app.server  # Renderデプロイ用にserverを公開
 
-if uploaded_file is not None:
-    # 一時ファイルとして保存
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".gpx") as tmp_file:
-        tmp_file.write(uploaded_file.getvalue())
-        tmp_file_path = tmp_file.name
+# アプリケーションのタイトルを設定
+app.title = "TrailSync"
+
+# レイアウトの定義
+app.layout = dbc.Container([
+    dbc.Row([
+        dbc.Col([
+            html.H1("TrailSync", className="text-center my-4"),
+            html.P(
+                "様々なアクティビティログサービス（ヤマレコ、Strava、Runkeeper等）の"
+                "GPXファイルを統一フォーマットに変換し、相互運用性を高めるツールです。",
+                className="text-center mb-4"
+            ),
+        ], width=12)
+    ]),
+    
+    dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader("GPXファイルをアップロード"),
+                dbc.CardBody([
+                    dcc.Upload(
+                        id='upload-gpx',
+                        children=html.Div([
+                            'ドラッグ＆ドロップまたは ',
+                            html.A('ファイルを選択')
+                        ]),
+                        style={
+                            'width': '100%',
+                            'height': '60px',
+                            'lineHeight': '60px',
+                            'borderWidth': '1px',
+                            'borderStyle': 'dashed',
+                            'borderRadius': '5px',
+                            'textAlign': 'center',
+                            'margin': '10px'
+                        },
+                        multiple=False
+                    ),
+                    html.Div(id='upload-output'),
+                ])
+            ], className="mb-4"),
+        ], width=12)
+    ]),
+    
+    dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader("変換オプション"),
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            html.Label("サービスを選択"),
+                            dcc.Dropdown(
+                                id='service-dropdown',
+                                options=[
+                                    {'label': '自動検出', 'value': 'auto'},
+                                    {'label': 'Yamareco', 'value': 'yamareco'},
+                                    {'label': 'Strava', 'value': 'strava'},
+                                    {'label': 'Runkeeper', 'value': 'runkeeper'}
+                                ],
+                                value='auto',
+                                clearable=False
+                            ),
+                        ], width=6),
+                        dbc.Col([
+                            html.Label("アクティビティタイプ"),
+                            dcc.Dropdown(
+                                id='activity-type-dropdown',
+                                options=[
+                                    {'label': 'ハイキング', 'value': 'hiking'},
+                                    {'label': 'ランニング', 'value': 'running'},
+                                    {'label': 'サイクリング', 'value': 'cycling'},
+                                    {'label': 'ウォーキング', 'value': 'walking'},
+                                    {'label': 'スイミング', 'value': 'swimming'},
+                                    {'label': 'その他', 'value': 'other'}
+                                ],
+                                value='hiking',
+                                clearable=False
+                            ),
+                        ], width=6)
+                    ]),
+                    dbc.Row([
+                        dbc.Col([
+                            html.Label("トラック名"),
+                            dbc.Input(id='track-name-input', type='text', placeholder='トラック名を入力'),
+                        ], width=12, className="mt-3")
+                    ]),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Button("統一フォーマットに変換", id='convert-button', color="primary", className="mt-3", disabled=True),
+                        ], width=12, className="text-center")
+                    ])
+                ])
+            ], className="mb-4"),
+        ], width=12)
+    ]),
+    
+    dbc.Row([
+        dbc.Col([
+            html.Div(id='gpx-info-output'),
+        ], width=12)
+    ]),
+    
+    dbc.Row([
+        dbc.Col([
+            html.Div(id='map-output'),
+        ], width=12)
+    ]),
+    
+    dbc.Row([
+        dbc.Col([
+            html.Div(id='conversion-output'),
+        ], width=12)
+    ]),
+    
+    dbc.Row([
+        dbc.Col([
+            html.Hr(),
+            html.Footer([
+                html.P("© 2025 HōkaLabs. All rights reserved.", className="text-center"),
+                html.P([
+                    "開発者をサポートする: ",
+                    html.A("Buy me a coffee", href="https://www.buymeacoffee.com/mump0nd", target="_blank", className="coffee-btn")
+                ], className="text-center"),
+                html.P([
+                    "詳細については、",
+                    html.A("GitHub", href="https://github.com/mump0nd/trailsync", target="_blank"),
+                    "を参照してください。"
+                ], className="text-center")
+            ])
+        ], width=12)
+    ])
+], fluid=True)
+
+# カスタムCSS
+app.index_string = '''
+<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+        <style>
+            .coffee-btn {
+                display: inline-block;
+                padding: 5px 15px;
+                background-color: #FFDD00;
+                color: #000000 !important;
+                font-weight: bold;
+                text-decoration: none;
+                border-radius: 5px;
+                margin: 5px;
+                text-align: center;
+                transition: all 0.3s ease;
+            }
+            .coffee-btn:hover {
+                background-color: #FFCC00;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            }
+        </style>
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>
+'''
+
+# コールバック関数
+@app.callback(
+    [Output('upload-output', 'children'),
+     Output('convert-button', 'disabled'),
+     Output('service-dropdown', 'value'),
+     Output('track-name-input', 'value')],
+    [Input('upload-gpx', 'contents')],
+    [State('upload-gpx', 'filename')]
+)
+def update_output(contents, filename):
+    if contents is None:
+        return html.Div("ファイルをアップロードしてください"), True, 'auto', ''
+    
+    if not filename.endswith('.gpx'):
+        return html.Div("GPXファイルのみアップロード可能です"), True, 'auto', ''
     
     try:
+        # ファイルの内容をデコード
+        content_type, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
+        
+        # 一時ファイルとして保存
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".gpx") as tmp_file:
+            tmp_file.write(decoded)
+            tmp_file_path = tmp_file.name
+        
         # GPXファイルを解析
         parser = GPXParser()
         gpx_data = parser.parse_file(tmp_file_path)
@@ -115,59 +264,85 @@ if uploaded_file is not None:
             # サービスを検出
             detected_service = parser.detect_service(gpx_data)
             
-            # 解析結果を表示
-            st.success(f"GPXファイルの解析に成功しました！")
+            # トラック名を取得
+            track_name = gpx_data['tracks'][0].get('name', '') if gpx_data['tracks'] else ""
             
-            # サービス選択
-            service_options = ["auto", "yamareco", "strava", "runkeeper"]
-            selected_service = st.selectbox(
-                "サービスを選択",
-                service_options,
-                index=service_options.index(detected_service) if detected_service in service_options else 0,
-                format_func=lambda x: "自動検出" if x == "auto" else x.capitalize(),
-            )
+            # 一時ファイルを削除
+            os.unlink(tmp_file_path)
             
-            # 変換オプション
-            with st.expander("変換オプション", expanded=True):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    track_name = st.text_input(
-                        "トラック名",
-                        value=gpx_data['tracks'][0].get('name', '') if gpx_data['tracks'] else "",
-                    )
-                
-                with col2:
-                    activity_types = ["hiking", "running", "cycling", "walking", "swimming", "other"]
-                    detected_type = next((t.get('type', 'hiking') for t in gpx_data['tracks'] if t.get('type')), "hiking")
-                    activity_type = st.selectbox(
-                        "アクティビティタイプ",
-                        activity_types,
-                        index=activity_types.index(detected_type) if detected_type in activity_types else 0,
-                    )
+            return html.Div([
+                html.P(f"ファイル名: {filename}"),
+                html.P(f"検出されたサービス: {detected_service.capitalize() if detected_service else '不明'}")
+            ]), False, detected_service if detected_service else 'auto', track_name
+        else:
+            # 一時ファイルを削除
+            os.unlink(tmp_file_path)
+            return html.Div("GPXファイルの解析に失敗しました"), True, 'auto', ''
+    
+    except Exception as e:
+        return html.Div(f"エラーが発生しました: {str(e)}"), True, 'auto', ''
+
+@app.callback(
+    [Output('gpx-info-output', 'children'),
+     Output('map-output', 'children')],
+    [Input('upload-gpx', 'contents')],
+    [State('upload-gpx', 'filename')]
+)
+def display_gpx_info(contents, filename):
+    if contents is None:
+        return html.Div(), html.Div()
+    
+    if not filename.endswith('.gpx'):
+        return html.Div(), html.Div()
+    
+    try:
+        # ファイルの内容をデコード
+        content_type, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
+        
+        # 一時ファイルとして保存
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".gpx") as tmp_file:
+            tmp_file.write(decoded)
+            tmp_file_path = tmp_file.name
+        
+        # GPXファイルを解析
+        parser = GPXParser()
+        gpx_data = parser.parse_file(tmp_file_path)
+        
+        if gpx_data:
+            # サービスを検出
+            detected_service = parser.detect_service(gpx_data)
             
             # GPXデータの概要を表示
-            with st.expander("GPXデータの概要", expanded=True):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.subheader("ファイル情報")
-                    st.write(f"作成者: {gpx_data['creator']}")
-                    st.write(f"サービス: {detected_service.capitalize()}")
-                    st.write(f"トラック数: {len(gpx_data['tracks'])}")
-                    
-                    if gpx_data['metadata']:
-                        st.subheader("メタデータ")
-                        for key, value in gpx_data['metadata'].items():
-                            st.write(f"{key}: {value}")
-                
-                with col2:
-                    st.subheader("トラック情報")
-                    for i, track in enumerate(gpx_data['tracks']):
-                        st.write(f"トラック {i+1}:")
-                        st.write(f"名前: {track.get('name', 'なし')}")
-                        st.write(f"タイプ: {track.get('type', 'なし')}")
-                        st.write(f"ポイント数: {len(track['points'])}")
+            info_card = dbc.Card([
+                dbc.CardHeader("GPXデータの概要"),
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            html.H5("ファイル情報"),
+                            html.P(f"作成者: {gpx_data['creator']}"),
+                            html.P(f"サービス: {detected_service.capitalize() if detected_service else '不明'}"),
+                            html.P(f"トラック数: {len(gpx_data['tracks'])}"),
+                            
+                            html.H5("メタデータ", className="mt-3") if gpx_data['metadata'] else html.Div(),
+                            html.Div([
+                                html.P(f"{key}: {value}") for key, value in gpx_data['metadata'].items()
+                            ]) if gpx_data['metadata'] else html.Div(),
+                        ], width=6),
+                        dbc.Col([
+                            html.H5("トラック情報"),
+                            html.Div([
+                                html.Div([
+                                    html.P(f"トラック {i+1}:"),
+                                    html.P(f"名前: {track.get('name', 'なし')}"),
+                                    html.P(f"タイプ: {track.get('type', 'なし')}"),
+                                    html.P(f"ポイント数: {len(track['points'])}")
+                                ]) for i, track in enumerate(gpx_data['tracks'])
+                            ])
+                        ], width=6)
+                    ])
+                ])
+            ], className="mb-4")
             
             # トラックポイントをDataFrameに変換
             points_data = []
@@ -183,99 +358,150 @@ if uploaded_file is not None:
             df = pd.DataFrame(points_data)
             
             # 地図の表示
+            map_card = html.Div()
             if not df.empty and 'lat' in df.columns and 'lon' in df.columns:
-                st.subheader("トラックの地図表示")
-                
-                # 中心座標を計算
-                center_lat = df['lat'].mean()
-                center_lon = df['lon'].mean()
-                
-                # Foliumマップを作成
-                m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
-                
-                # トラックを追加
-                points = df[['lat', 'lon']].values.tolist()
-                folium.PolyLine(points, color='blue', weight=3, opacity=0.7).add_to(m)
+                # Plotlyを使用して地図を表示
+                fig = px.line_mapbox(
+                    df, 
+                    lat='lat', 
+                    lon='lon', 
+                    hover_name=df.index,
+                    mapbox_style="open-street-map",
+                    zoom=10
+                )
                 
                 # 開始点と終了点にマーカーを追加
-                folium.Marker(
-                    location=[df['lat'].iloc[0], df['lon'].iloc[0]],
-                    popup='開始点',
-                    icon=folium.Icon(color='green', icon='play'),
-                ).add_to(m)
+                fig.add_scattermapbox(
+                    lat=[df['lat'].iloc[0]],
+                    lon=[df['lon'].iloc[0]],
+                    mode='markers',
+                    marker=dict(size=10, color='green'),
+                    name='開始点'
+                )
                 
-                folium.Marker(
-                    location=[df['lat'].iloc[-1], df['lon'].iloc[-1]],
-                    popup='終了点',
-                    icon=folium.Icon(color='red', icon='stop'),
-                ).add_to(m)
+                fig.add_scattermapbox(
+                    lat=[df['lat'].iloc[-1]],
+                    lon=[df['lon'].iloc[-1]],
+                    mode='markers',
+                    marker=dict(size=10, color='red'),
+                    name='終了点'
+                )
                 
-                # 地図を表示
-                folium_static(m)
+                # レイアウトの調整
+                fig.update_layout(
+                    margin={"r":0,"t":0,"l":0,"b":0},
+                    height=500,
+                    legend=dict(
+                        yanchor="top",
+                        y=0.99,
+                        xanchor="left",
+                        x=0.01
+                    )
+                )
+                
+                map_card = dbc.Card([
+                    dbc.CardHeader("トラックの地図表示"),
+                    dbc.CardBody([
+                        dcc.Graph(figure=fig)
+                    ])
+                ], className="mb-4")
             
-            # 変換ボタン
-            if st.button("統一フォーマットに変換"):
-                # サービス固有の処理
-                if selected_service != "auto":
-                    service_class = service_classes[selected_service]
-                    service = service_class()
-                    gpx_data = service.convert_to_universal(gpx_data)
-                else:
-                    # 自動検出の場合
-                    service_class = service_classes.get(detected_service)
-                    if service_class:
-                        service = service_class()
-                        gpx_data = service.convert_to_universal(gpx_data)
-                
-                # 統一フォーマットに変換
-                converter = GPXConverter()
-                output_file = os.path.join(tempfile.gettempdir(), "converted.gpx")
-                
-                if converter.convert_to_universal_format(gpx_data, output_file, track_name, activity_type):
-                    st.success("変換が完了しました！")
-                    
-                    # 変換結果をダウンロード可能にする
-                    with open(output_file, "r", encoding="utf-8") as f:
-                        converted_data = f.read()
-                    
-                    b64 = base64.b64encode(converted_data.encode()).decode()
-                    href = f'<a href="data:application/gpx+xml;base64,{b64}" download="converted.gpx">変換されたGPXファイルをダウンロード</a>'
-                    st.markdown(href, unsafe_allow_html=True)
-                    
-                    # 変換結果を表示
-                    with st.expander("変換結果のプレビュー", expanded=False):
-                        st.code(converted_data, language="xml")
-                else:
-                    st.error("変換に失敗しました。")
+            # 一時ファイルを削除
+            os.unlink(tmp_file_path)
+            
+            return info_card, map_card
         else:
-            st.error("GPXファイルの解析に失敗しました。")
+            # 一時ファイルを削除
+            os.unlink(tmp_file_path)
+            return html.Div(), html.Div()
     
     except Exception as e:
-        st.error(f"エラーが発生しました: {e}")
+        return html.Div(f"エラーが発生しました: {str(e)}"), html.Div()
+
+@app.callback(
+    Output('conversion-output', 'children'),
+    [Input('convert-button', 'n_clicks')],
+    [State('upload-gpx', 'contents'),
+     State('service-dropdown', 'value'),
+     State('activity-type-dropdown', 'value'),
+     State('track-name-input', 'value')]
+)
+def convert_gpx(n_clicks, contents, service, activity_type, track_name):
+    if n_clicks is None or contents is None:
+        return html.Div()
+    
+    try:
+        # ファイルの内容をデコード
+        content_type, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
+        
+        # 一時ファイルとして保存
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".gpx") as tmp_file:
+            tmp_file.write(decoded)
+            tmp_file_path = tmp_file.name
+        
+        # GPXファイルを解析
+        parser = GPXParser()
+        gpx_data = parser.parse_file(tmp_file_path)
+        
+        if gpx_data:
+            # サービス固有の処理
+            if service != "auto":
+                service_class = service_classes[service]
+                service_instance = service_class()
+                gpx_data = service_instance.convert_to_universal(gpx_data)
+            else:
+                # 自動検出の場合
+                detected_service = parser.detect_service(gpx_data)
+                service_class = service_classes.get(detected_service)
+                if service_class:
+                    service_instance = service_class()
+                    gpx_data = service_instance.convert_to_universal(gpx_data)
+            
+            # 統一フォーマットに変換
+            converter = GPXConverter()
+            output_file = os.path.join(tempfile.gettempdir(), "converted.gpx")
+            
+            if converter.convert_to_universal_format(gpx_data, output_file, track_name, activity_type):
+                # 変換結果を読み込む
+                with open(output_file, "r", encoding="utf-8") as f:
+                    converted_data = f.read()
+                
+                # Base64エンコード
+                b64 = base64.b64encode(converted_data.encode()).decode()
+                
+                # 変換結果を表示
+                return dbc.Card([
+                    dbc.CardHeader("変換結果"),
+                    dbc.CardBody([
+                        html.P("変換が完了しました！"),
+                        html.A(
+                            "変換されたGPXファイルをダウンロード",
+                            href=f"data:application/gpx+xml;base64,{b64}",
+                            download="converted.gpx",
+                            className="btn btn-success mb-3"
+                        ),
+                        dbc.Card([
+                            dbc.CardHeader("変換結果のプレビュー"),
+                            dbc.CardBody([
+                                html.Pre(converted_data, style={"max-height": "400px", "overflow": "auto"})
+                            ])
+                        ])
+                    ])
+                ])
+            else:
+                return dbc.Alert("変換に失敗しました。", color="danger")
+        else:
+            return dbc.Alert("GPXファイルの解析に失敗しました。", color="danger")
+    
+    except Exception as e:
+        return dbc.Alert(f"エラーが発生しました: {str(e)}", color="danger")
     
     finally:
         # 一時ファイルを削除
-        if os.path.exists(tmp_file_path):
+        if 'tmp_file_path' in locals() and os.path.exists(tmp_file_path):
             os.unlink(tmp_file_path)
 
-# フッター
-st.markdown("---")
-st.markdown("""
-<div style="display: flex; justify-content: space-between; align-items: center;">
-    <div>
-        <p>© 2025 HōkaLabs. All rights reserved.</p>
-    </div>
-    <div>
-        <a href="https://www.buymeacoffee.com/mump0nd" target="_blank" class="buy-me-coffee">
-            <img src="https://cdn.buymeacoffee.com/buttons/bmc-new-btn-logo.svg" alt="Buy me a coffee">
-            Buy me a coffee
-        </a>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-st.sidebar.markdown("---")
-st.sidebar.info(
-    "このアプリケーションは、TrailSyncのデモです。"
-    "詳細については、[GitHub](https://github.com/HokaLabs/trailsync)を参照してください。"
-)
+# Streamlitとの互換性のためのエントリーポイント
+if __name__ == '__main__':
+    app.run_server(debug=True)
