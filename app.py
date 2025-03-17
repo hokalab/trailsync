@@ -35,7 +35,12 @@ try:
 except ImportError:
     # ローカル開発環境用のフォールバック
     print("Warning: Unable to import from src.trailsync. Using local imports.")
-    # 必要に応じてローカルインポートを設定
+    # ローカルインポートを設定
+    from src.universal_gpx_converter.parser import GPXParser
+    from src.universal_gpx_converter.converter import GPXConverter
+    from src.universal_gpx_converter.services.yamareco import YamarecoService
+    from src.universal_gpx_converter.services.strava import StravaService
+    from src.universal_gpx_converter.services.runkeeper import RunkeeperService
 
 # サービスのマッピング
 service_classes = {
