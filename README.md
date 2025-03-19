@@ -104,6 +104,86 @@ curl -X POST YOUR WEBHOOK URL
 YOUR WEBHOOK URL
 ```
 
+### Render CLIを使用したデプロイとログの確認
+
+Render CLIを使用すると、コマンドラインからRenderのサービスを管理し、ログを確認することができます。
+
+#### Render CLIのインストール
+
+```bash
+# npmを使用してインストール
+npm install -g @render/cli
+
+# または、yarnを使用してインストール
+yarn global add @render/cli
+```
+
+#### Render CLIの設定
+
+初回使用時に認証が必要です：
+
+```bash
+render login
+```
+
+ブラウザが開き、Renderアカウントでの認証が求められます。認証が完了すると、CLIが使用可能になります。
+
+#### デプロイの状態確認
+
+```bash
+# サービス一覧の表示
+render list
+
+# 特定のサービスの詳細を表示
+render get-service trailsync
+```
+
+#### ログの確認
+
+```bash
+# 最新のデプロイログを表示
+render logs trailsync
+
+# リアルタイムでログを表示（tail -f のように）
+render logs trailsync --follow
+
+# 特定の時間範囲のログを表示
+render logs trailsync --start "2025-03-18T00:00:00Z" --end "2025-03-19T00:00:00Z"
+
+# ログの行数を制限
+render logs trailsync --limit 100
+```
+
+#### 手動デプロイの実行
+
+```bash
+# 最新のコミットでデプロイを実行
+render deploy trailsync
+
+# 特定のブランチからデプロイを実行
+render deploy trailsync --branch main
+```
+
+#### 環境変数の管理
+
+```bash
+# 環境変数の一覧表示
+render env trailsync
+
+# 環境変数の設定
+render env set trailsync KEY=VALUE
+
+# 環境変数の削除
+render env unset trailsync KEY
+```
+
+詳細なコマンドオプションは、以下のコマンドで確認できます：
+
+```bash
+render --help
+render logs --help
+```
+
 ## ライセンス
 
 このプロジェクトはMITライセンスの下で公開されています。詳細はLICENSEファイルを参照してください。
