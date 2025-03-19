@@ -71,3 +71,6 @@ docs/planning/
 
 # Test output
 tests/test_data/output/
+
+# Test data
+tests/test_data/
