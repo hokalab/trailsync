@@ -249,6 +249,38 @@ def convert_yamareco_to_runkeeper(input_file, output_file, options):
         print(f"ファイルの保存中にエラーが発生しました: {e}")
         return False
 
+# app.pyで使用するための関数エイリアス
+def convert_gpx(input_file, output_file, **options):
+    """
+    app.pyで使用するための関数エイリアス
+    convert_yamareco_to_runkeeperのラッパー関数
+    """
+    # オプションをargparseの名前空間オブジェクトに変換
+    class Options:
+        pass
+    
+    args = Options()
+    for key, value in options.items():
+        setattr(args, key, value)
+    
+    # デフォルト値の設定
+    if not hasattr(args, 'activity_type'):
+        args.activity_type = 'hiking'
+    if not hasattr(args, 'format_xml'):
+        args.format_xml = True
+    if not hasattr(args, 'coordinate_precision'):
+        args.coordinate_precision = 6
+    if not hasattr(args, 'elevation_adjustment'):
+        args.elevation_adjustment = 5.2
+    if not hasattr(args, 'add_metadata'):
+        args.add_metadata = True
+    if not hasattr(args, 'keep_source'):
+        args.keep_source = True
+    if not hasattr(args, 'track_name'):
+        args.track_name = None
+    
+    return convert_yamareco_to_runkeeper(input_file, output_file, args)
+
 def main():
     """メイン関数"""
     parser = argparse.ArgumentParser(description='ヤマレコのGPXファイルをランキーパー形式に変換します。')
