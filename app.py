@@ -36,12 +36,15 @@ app.layout = html.Div([
         html.H2("GPXファイル変換ツール", style={'textAlign': 'center'}),
         html.P("ヤマレコのGPXファイルをRunkeeper互換フォーマットに変換します。", style={'textAlign': 'center'}),
         
+        # File Upload Status
+        html.Div(id='upload-status', style={'marginBottom': '10px', 'color': 'blue'}),
+        
         # File Upload
         dcc.Upload(
             id='upload-gpx',
             children=html.Div([
                 'ドラッグ＆ドロップまたは',
-                html.A('ファイルを選択')
+                html.A('ファイルを選択', style={'color': 'blue', 'textDecoration': 'underline', 'cursor': 'pointer'})
             ]),
             style={
                 'width': '100%',
@@ -51,7 +54,9 @@ app.layout = html.Div([
                 'borderStyle': 'dashed',
                 'borderRadius': '5px',
                 'textAlign': 'center',
-                'margin': '10px 0'
+                'margin': '10px 0',
+                'cursor': 'pointer',
+                'backgroundColor': '#f8f9fa'
             },
             multiple=False
         ),
@@ -163,6 +168,17 @@ app.layout = html.Div([
         html.Div(id='download-container')
     ], style={'maxWidth': '800px', 'margin': '0 auto', 'padding': '20px', 'backgroundColor': '#f9f9f9', 'borderRadius': '10px'})
 ])
+
+# Callback for file upload status
+@app.callback(
+    Output('upload-status', 'children'),
+    [Input('upload-gpx', 'contents'),
+     Input('upload-gpx', 'filename')]
+)
+def update_upload_status(contents, filename):
+    if contents is not None:
+        return f"ファイルが選択されました: {filename}"
+    return ""
 
 # Callback for file processing
 @app.callback(
@@ -276,5 +292,5 @@ def process_gpx(n_clicks, contents, filename, activity_type, track_name, format_
             ""
         )
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run_server(debug=True)

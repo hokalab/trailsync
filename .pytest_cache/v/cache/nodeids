@@ -1,0 +1,6 @@
+[
+  "tests/test_parser.py::TestGPXParser::test_detect_service",
+  "tests/test_parser.py::TestGPXParser::test_parse_runkeeper_file",
+  "tests/test_parser.py::TestGPXParser::test_parse_strava_file",
+  "tests/test_parser.py::TestGPXParser::test_parse_yamareco_file"
+]

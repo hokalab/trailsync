@@ -52,6 +52,9 @@ class GPXParser:
             # メタデータ
             metadata = self._parse_metadata(root, ns)
             
+            # ウェイポイントを抽出
+            waypoints = self._parse_waypoints(root, ns)
+            
             # 全トラックとポイントを抽出
             tracks = self._parse_tracks(root, ns)
             
@@ -74,9 +77,13 @@ class GPXParser:
                     if 'time' not in metadata:
                         metadata['time'] = start_time
             
+            # 標高と時間の情報がない場合は補完
+            self._fill_missing_data(all_points)
+            
             return {
                 'creator': creator,
                 'metadata': metadata,
+                'waypoints': waypoints,
                 'tracks': tracks,
                 'all_points': all_points
             }
@@ -158,6 +165,60 @@ class GPXParser:
                     metadata['link_text'] = link_text_elem.text
         
         return metadata
+
+    def _parse_waypoints(self, root: ET.Element, ns: Dict[str, str]) -> List[Dict[str, Any]]:
+        """ウェイポイントを解析
+
+        Args:
+            root: XMLのルート要素
+            ns: 名前空間の辞書
+
+        Returns:
+            List[Dict[str, Any]]: ウェイポイントのリスト
+        """
+        waypoints = []
+        
+        for wpt in root.findall('.//{{{0}}}wpt'.format(ns['gpx'])):
+            waypoint = {
+                'lat': wpt.get('lat'),
+                'lon': wpt.get('lon'),
+                'ele': None,
+                'time': None,
+                'name': None,
+                'sym': None,
+                'extensions': {}
+            }
+            
+            # 標高
+            ele_elem = wpt.find('.//{{{0}}}ele'.format(ns['gpx']))
+            if ele_elem is not None:
+                waypoint['ele'] = ele_elem.text
+            
+            # 時間
+            time_elem = wpt.find('.//{{{0}}}time'.format(ns['gpx']))
+            if time_elem is not None:
+                waypoint['time'] = time_elem.text
+            
+            # 名前
+            name_elem = wpt.find('.//{{{0}}}name'.format(ns['gpx']))
+            if name_elem is not None:
+                waypoint['name'] = name_elem.text
+            
+            # シンボル
+            sym_elem = wpt.find('.//{{{0}}}sym'.format(ns['gpx']))
+            if sym_elem is not None:
+                waypoint['sym'] = sym_elem.text
+            
+            # 拡張データ
+            extensions_elem = wpt.find('.//{{{0}}}extensions'.format(ns['gpx']))
+            if extensions_elem is not None:
+                for ext in extensions_elem:
+                    tag = ext.tag.split('}')[-1]
+                    waypoint['extensions'][tag] = ext.text
+            
+            waypoints.append(waypoint)
+        
+        return waypoints
 
     def _parse_tracks(self, root: ET.Element, ns: Dict[str, str]) -> List[Dict[str, Any]]:
         """トラックを解析
@@ -260,6 +321,43 @@ class GPXParser:
                         point['extensions'][child_tag] = child.text
         
         return point
+
+    def _fill_missing_data(self, points: List[Dict[str, Any]]) -> None:
+        """標高と時間の情報がない場合は補完
+
+        Args:
+            points: トラックポイントのリスト
+        """
+        # 現在時刻を取得
+        now = datetime.now().isoformat()
+        
+        # 標高と時間の情報がある点を探す
+        has_ele = False
+        has_time = False
+        ele_value = "0"  # デフォルト値
+        time_value = now  # デフォルト値
+        
+        for point in points:
+            if point['ele']:
+                has_ele = True
+                ele_value = point['ele']
+            if point['time']:
+                has_time = True
+                time_value = point['time']
+            
+            if has_ele and has_time:
+                break
+        
+        # 標高と時間の情報がない場合は補完
+        for point in points:
+            if not point['ele']:
+                point['ele'] = ele_value
+            if not point['time']:
+                point['time'] = time_value
+                try:
+                    point['datetime'] = datetime.fromisoformat(time_value.replace('Z', '+00:00'))
+                except ValueError:
+                    point['datetime'] = datetime.min
 
     def detect_service(self, gpx_data: Dict[str, Any]) -> str:
         """GPXデータからサービスを検出
