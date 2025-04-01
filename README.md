@@ -16,19 +16,14 @@ TrailSyncは、ヤマレコのGPXファイルをRunkeeper互換フォーマッ�
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/mump0nd/trailsync.git
+git clone https://github.com/hokalab/trailsync.git
 cd trailsync
 
-# 仮想環境の作成と有効化
-python -m venv venv
-source venv/bin/activate  # Linuxの場合
-# venv\Scripts\activate  # Windowsの場合
-
-# 依存パッケージのインストール
-pip install -r requirements.txt
+# Poetryを使用して依存パッケージをインストール
+poetry install
 
 # 改良版スクリプトを実行
-python src/yamareco_to_runkeeper_improved.py input.gpx -o output.gpx
+poetry run python src/yamareco_to_runkeeper_improved.py input.gpx -o output.gpx
 ```
 
 ### Webアプリケーション
@@ -41,19 +36,14 @@ TrailSyncはWebアプリケーションとしても利用できます。以下�
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/mump0nd/trailsync.git
+git clone https://github.com/hokalab/trailsync.git
 cd trailsync
 
-# 仮想環境の作成と有効化
-python -m venv venv
-source venv/bin/activate  # Linuxの場合
-# venv\Scripts\activate  # Windowsの場合
-
-# 依存パッケージのインストール
-pip install -r requirements.txt
+# Poetryを使用して依存パッケージをインストール
+poetry install
 
 # アプリケーションを実行
-python app.py
+poetry run python app.py
 ```
 
 ブラウザで http://localhost:8050 を開くと、ローカルで実行されているTrailSyncのWebインターフェースが表示されます。
@@ -70,7 +60,7 @@ YOUR WEBHOOK URL
 
 GitHubのリポジトリからRenderへの自動デプロイを設定するには、以下の手順に従います：
 
-1. GitHubのリポジトリページ（https://github.com/mump0nd/trailsync）に移動します
+1. GitHubのリポジトリページ（https://github.com/hokalab/trailsync）に移動します
 2. 「Settings」タブを選択します
 3. 左側のメニューから「Webhooks」を選択します
 4. 「Add webhook」ボタンをクリックします
